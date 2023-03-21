@@ -28,6 +28,37 @@ locals {
   }
 }
 
+############################################################################
+# IAM
+############################################################################
+
+data "aws_iam_policy_document" "instance_assume_role_policy" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+data "aws_iam_policy" "AmazonSSMManagedInstanceCore" {
+  arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role" "ec2_role" {
+  name                  = "demo-ec2-ssm"
+  description           = "Role used by EC2 for SSM"
+  assume_role_policy    = data.aws_iam_policy_document.instance_assume_role_policy.json
+  managed_policy_arns   = [data.aws_iam_policy.AmazonSSMManagedInstanceCore.arn]
+  tags = local.tags
+}
+
+
+############################################################################
+# RDS
+############################################################################
+
 module "rds" {
   source = "terraform-aws-modules/rds/aws"
 
@@ -69,6 +100,11 @@ module "rds" {
 
   tags = local.tags
 }
+
+
+############################################################################
+# VPC
+############################################################################
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
