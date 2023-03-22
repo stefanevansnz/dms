@@ -18,7 +18,6 @@ data "aws_availability_zones" "available" {}
 
 locals {
   name    = "mssql-example"
-  region  = "eu-west-1"
 
   vpc_cidr = "10.0.0.0/16"
   azs      = slice(data.aws_availability_zones.available.names, 0, 3)
@@ -56,9 +55,30 @@ resource "aws_iam_role" "ec2_role" {
 
 
 ############################################################################
-# RDS
+# DB SG and RDS
 ############################################################################
+module "db_security_group" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "~> 4.0"
 
+  name        = local.name
+  description = "db security group"
+  vpc_id      = module.vpc.vpc_id
+
+  # ingress
+  ingress_with_source_security_group_id = [
+    {
+      from_port   = 1433
+      to_port     = 1433
+      protocol    = "tcp"
+      description = "Ingress from Bastion SG"
+      source_security_group_id  = module.bastion_security_group.security_group_id
+    }  
+
+  ]
+
+  tags = local.tags
+}
 module "rds" {
   source = "terraform-aws-modules/rds/aws"
 
@@ -81,7 +101,7 @@ module "rds" {
 
   multi_az               = false
   db_subnet_group_name   = module.vpc.database_subnet_group
-  vpc_security_group_ids = [module.security_group.security_group_id]
+  vpc_security_group_ids = [module.db_security_group.security_group_id]
 
   maintenance_window              = "Mon:00:00-Mon:03:00"
   backup_window                   = "03:00-06:00"
@@ -101,6 +121,38 @@ module "rds" {
   tags = local.tags
 }
 
+############################################################################
+# Bastion SG and EC2
+############################################################################
+module "bastion_security_group" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "~> 4.0"
+
+  name        = local.name
+  description = "bastion host security group"
+  vpc_id      = module.vpc.vpc_id
+
+  # egress
+  egress_with_cidr_blocks = [
+    {
+      from_port   = 1433
+      to_port     = 1433
+      protocol    = "tcp"
+      description = "Egress out to mssql"
+      cidr_blocks = "0.0.0.0/0"
+    },
+    {
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      description = "Egress to https"
+      cidr_blocks = "0.0.0.0/0"
+    }    
+
+  ]
+
+  tags = local.tags
+}
 
 ############################################################################
 # VPC
