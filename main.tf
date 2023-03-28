@@ -30,7 +30,7 @@ locals {
 ############################################################################
 # DB SG and RDS
 ############################################################################
-module "db_security_group" {
+module "rds_db_security_group" {
   source  = "terraform-aws-modules/security-group/aws"
   version = "~> 4.0"
 
@@ -52,81 +52,51 @@ module "db_security_group" {
 
   tags = local.tags
 }
-# module "rds" {
-#   source = "terraform-aws-modules/rds/aws"
+module "rds" {
+  source = "terraform-aws-modules/rds/aws"
 
-#   identifier = local.name
+  identifier = local.name
 
-#   engine               = "sqlserver-ex"
-#   engine_version       = "15.00"
-#   family               = "sqlserver-ex-15.0" # DB parameter group
-#   major_engine_version = "15.00"             # DB option group
-#   instance_class       = "db.t3.small"
+  engine               = "sqlserver-ex"
+  engine_version       = "15.00"
+  family               = "sqlserver-ex-15.0" # DB parameter group
+  major_engine_version = "15.00"             # DB option group
+  instance_class       = "db.t3.small"
 
-#   allocated_storage     = 20
-#   max_allocated_storage = 100
+  allocated_storage     = 20
+  max_allocated_storage = 100
 
-#   # Encryption at rest is not available for DB instances running SQL Server Express Edition
-#   storage_encrypted = false
+  # Encryption at rest is not available for DB instances running SQL Server Express Edition
+  storage_encrypted = false
 
-#   username = "complete_mssql"
-#   port     = 1433
+  username = "complete_mssql"
+  port     = 1433
 
-#   multi_az               = false
-#   db_subnet_group_name   = module.vpc.database_subnet_group
-#   vpc_security_group_ids = [module.db_security_group.security_group_id]
+  multi_az               = false
+  db_subnet_group_name   = module.vpc.database_subnet_group
+  vpc_security_group_ids = [module.rds_db_security_group.security_group_id]
 
-#   maintenance_window              = "Mon:00:00-Mon:03:00"
-#   backup_window                   = "03:00-06:00"
-#   enabled_cloudwatch_logs_exports = ["error"]
-#   create_cloudwatch_log_group     = true
+  maintenance_window              = "Mon:00:00-Mon:03:00"
+  backup_window                   = "03:00-06:00"
+  enabled_cloudwatch_logs_exports = ["error"]
+  create_cloudwatch_log_group     = true
 
-#   backup_retention_period = 1
-#   skip_final_snapshot     = true
-#   deletion_protection     = false
+  backup_retention_period = 1
+  skip_final_snapshot     = true
+  deletion_protection     = false
 
-#   options                   = []
-#   create_db_parameter_group = false
-#   license_model             = "license-included"
-#   timezone                  = "GMT Standard Time"
-#   character_set_name        = "Latin1_General_CI_AS"
+  options                   = []
+  create_db_parameter_group = false
+  license_model             = "license-included"
+  timezone                  = "GMT Standard Time"
+  character_set_name        = "Latin1_General_CI_AS"
 
-#   tags = local.tags
-# }
+  tags = local.tags
+}
 
 ############################################################################
 # Bastion SG and EC2
 ############################################################################
-# module "bastion_security_group" {
-#   source  = "terraform-aws-modules/security-group/aws"
-#   version = "~> 4.0"
-
-#   name        = local.name
-#   description = "bastion host security group"
-#   vpc_id      = module.vpc.vpc_id
-
-#   # egress
-#   egress_with_cidr_blocks = [
-#     {
-#       from_port   = 1433
-#       to_port     = 1433
-#       protocol    = "tcp"
-#       description = "Egress out to mssql"
-#       cidr_blocks = "0.0.0.0/0"
-#     },
-#     {
-#       from_port   = 443
-#       to_port     = 443
-#       protocol    = "tcp"
-#       description = "Egress to https"
-#       cidr_blocks = "0.0.0.0/0"
-#     }    
-
-#   ]
-
-#   tags = local.tags
-# }
-
 ## SEE https://registry.terraform.io/modules/bayupw/ssm-vpc-endpoint/aws/latest
 
 # Create IAM role and IAM instance profile for SSM
@@ -150,7 +120,7 @@ module "ec2-mssql-bastion" {
   version = "1.0.0"
   instance_hostname = "ec2-bastion"
 
-  instance_type          = "t2.micro"
+  instance_type        = "t2.micro"
 
   vpc_id               = module.vpc.vpc_id
   subnet_id            = module.vpc.database_subnets[0]
@@ -175,28 +145,6 @@ module "vpc" {
 
   enable_dns_hostnames = true
   enable_dns_support   = true
-
-  tags = local.tags
-}
-
-module "security_group" {
-  source  = "terraform-aws-modules/security-group/aws"
-  version = "~> 4.0"
-
-  name        = local.name
-  description = "SQLServer Security Group"
-  vpc_id      = module.vpc.vpc_id
-
-  # ingress
-  ingress_with_cidr_blocks = [
-    {
-      from_port   = 1433
-      to_port     = 1433
-      protocol    = "tcp"
-      description = "SqlServer access from within VPC"
-      cidr_blocks = module.vpc.vpc_cidr_block
-    },
-  ]
 
   tags = local.tags
 }
